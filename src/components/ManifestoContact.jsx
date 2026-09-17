@@ -146,7 +146,10 @@ export default function ManifestoContact() {
     >
       <div className="mc-sticky">
         <div className="mc-stage">
-          <section className="manifesto mc-panel" data-mc-from>
+          <section
+            className="manifesto mc-panel"
+            data-mc-from
+          >
             <div className="manifesto-shape" aria-hidden="true" />
             <div className="manifesto-inner section-pad reveal">
               <p className="kicker">Our kind of night</p>

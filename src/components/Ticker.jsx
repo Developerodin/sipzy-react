@@ -26,7 +26,10 @@ function LinePair({ text, hidden = false }) {
 
 export default function Ticker() {
   return (
-    <section className="ticker section-cover" aria-label="Sipzy brand line">
+    <section
+      className="ticker section-cover"
+      aria-label="Sipzy brand line"
+    >
       <div className="ticker-track">
         <div className="ticker-group">
           {LINES.map((text) => (

@@ -1,6 +1,9 @@
 export default function IntroStory() {
   return (
-    <section className="intro section-pad section-cover" id="story">
+    <section
+      className="intro section-pad section-cover"
+      id="story"
+    >
       <div className="intro-orbit" aria-hidden="true">
         <span>8%</span>
         <span>16%</span>

@@ -19,8 +19,8 @@ export default function FindYourSipzy() {
       <div className="find-sipzy-inner section-pad">
         <header className="find-head reveal">
           <p className="kicker">Flavour gravity</p>
-          <h2 id="find-heading">Find your Sipzy</h2>
           <p className="find-sub">Five moods. One question.</p>
+          <h2 id="find-heading">Find your Sipzy</h2>
         </header>
 
         <div className="find-stage" data-find-stage>

@@ -21,7 +21,7 @@ Vanilla source of truth: repo-root `assets/` (copied into this project). Specs a
 | File | Size use | Placement |
 |------|----------|-----------|
 | `/assets/sipzy-logo-white.svg` | Header default; footer wordmark | `.wordmark-logo--white`, `.footer-wordmark img` |
-| `/assets/sipzy-logo-black.svg` | Header when `.site-header.is-scrolled` | `.wordmark-logo--black` (CSS display swap) |
+| `/assets/sipzy-logo-black.svg` | Available (unused while header stays white-on-dark/black) | `.wordmark-logo--black` |
 
 ### Legacy duplicates (not referenced in HTML/JS)
 
@@ -144,7 +144,7 @@ Path pattern: `/assets/products-webp/16/{image}`
 | File | Note |
 |------|------|
 | `16/sipzy-jamun-cask-16pct-330ml tilted.png` | Unused by current JS |
-| `16/steel cap.png` | Unused by current JS |
+| `16/steel cap.png` | Desktop ritual-grid wheel reveal (`Ritual.jsx`) |
 
 **Placement:** Only inside dynamically rendered `.product-card > img` in `[data-product-rail]`. Alt: `Sipzy {name} {8|16}% bottle`. `loading="lazy"`.
 
@@ -170,7 +170,7 @@ Path pattern: `/assets/products-webp/16/{image}`
 | Find Sipzy | 5 × 16% bottle PNGs |
 | Range | 7 or 5 webps per toggle |
 | Duo | watermelon 8% PNG + jamun 16% PNG |
-| Ritual | none (unicode icons in CSS/HTML) |
+| Ritual | Desktop: `16/steel cap.png` wheel reveal; unicode icons in cards |
 | Manifesto / Contact | none |
 | Footer | white logo |
 

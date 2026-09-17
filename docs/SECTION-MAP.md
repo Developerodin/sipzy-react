@@ -35,7 +35,7 @@ Paths below use site-root form `assets/...`. In the React app serve them from `p
 ### Global layout rules
 
 - `html` / `body`: `overflow-x: clip`, `max-width: 100%`
-- `html { scroll-behavior: smooth }` (disabled under reduced motion)
+- `html { scroll-behavior: auto }` (Lenis owns smooth scrolling; avoid native smooth fights)
 - `.section-pad`: horizontal pad via `--pad`, vertical section padding as defined per block
 - Images: `max-width: 100%; display: block`
 
@@ -55,7 +55,7 @@ Paths below use site-root form `assets/...`. In the React app serve them from `p
 | System | Mechanism | React port note |
 |--------|-----------|-----------------|
 | `.reveal` | `IntersectionObserver` threshold `0.14`, rootMargin `0px 0px -5%` → add `.is-visible` once | GSAP ScrollTrigger `once: true` or keep IO |
-| Header scroll | Toggle `.is-scrolled` when `scrollY > hero.offsetTop + sticky + spacer - innerHeight * 0.6` | Sync with Lenis scroll |
+| Header scroll | Transparent on hero; `.is-solid` black bar + white chrome after hero scrub ends | Sync with Lenis / window scroll |
 | In-page anchors | `a[href^="#"]` → `preventDefault` + `scrollIntoView({ behavior: "smooth" })`; `#contact` uses `scrollToContactCover` | Lenis `scrollTo` |
 | Scroll direction | Track `scrollingDown` for ritual title fall + pour-fill | Need Lenis scroll listener |
 | `prefersReducedMotion()` | `matchMedia("(prefers-reduced-motion: reduce)")` | Gate all GSAP timelines |
@@ -93,9 +93,9 @@ header.site-header[data-header]
 - `position: fixed; z-index: 50; width: 100%`
 - Grid: `1fr auto 1fr`, centered nav, pill on right
 - Padding: `1.1rem var(--pad)`; scrolled: `padding-block: 0.75rem`
-- Default color: white (over hero video)
-- `.is-scrolled`: color `--ink`, `background: rgba(255,244,232,0.9)`, blur `16px`, bottom hairline shadow
-- Logo swap: white visible by default; black when `.is-scrolled`
+- On hero scrub: transparent background; white chrome (`data-theme="dark"`)
+- Past hero: `.is-solid` black bar + white chrome (logo, nav, pill)
+- `.is-scrolled`: compact `padding-block` when past hero
 - Logo height: `clamp(2.2rem, 4vw, 3rem)`
 
 ### ≤900px
@@ -109,13 +109,13 @@ header.site-header[data-header]
 
 ### Behavior
 
-- No hover-required for logo swap (scroll-driven)
-- Nav links: smooth scroll to sections
+- No per-section theme sampling
+- Nav links: smooth scroll to sections (Lenis)
 - Contact pill: special cover scroll (see Manifesto→Contact)
 
 ### GSAP/Lenis
 
-- Drive `.is-scrolled` from Lenis scroll position using the same threshold formula
+- Drive `.is-solid` / `.is-scrolled` from scroll past hero scrub end
 - Keep CSS transitions on color/background/padding
 
 ---
@@ -124,7 +124,7 @@ header.site-header[data-header]
 
 ### Purpose
 
-Scroll-scrubbed ~12s bottle film with staged copy overlays; ticker + intro nested as “covers” after spacer.
+Scroll-scrubbed ~12s bottle film with staged copy overlays; ticker nested after spacer. Ritual and intro are siblings in `App` (ritual early, intro late).
 
 ### DOM structure
 
@@ -138,20 +138,18 @@ section#top.hero-scroll
     .hero-progress > i[data-progress]
     .hero-copy
       .eyebrow
-      .hero-stage[data-stage="0..3"]  (0 has h1; 3 has .round-link)
+      .hero-stage[data-stage="0..2"]  (0 has h1; 2 has .round-link)
     .scroll-cue
   .hero-scrub-spacer[data-scrub-spacer]
   section.ticker.section-cover   (see §3)
-  section#story.intro…          (see §4)
 ```
 
 ### Layout
 
 - Sticky viewport film; tall spacer drives scrub distance
 - Progress = `(scrollY - hero.offsetTop) / (stickyH + spacerH - innerHeight)`
-- Video paused; `currentTime = progress * duration` (buffered-aware seek loop via `requestAnimationFrame`)
-- Stages: progress `<0.24` → 0; `<0.5` → 1; `<0.76` → 2; else 3 (class `.is-active`)
-- `.is-covered` when first `.section-cover` top < `0.98 * innerHeight` and sticky still visible (skipped if reduced motion)
+- Video paused; `currentTime = progress * duration` (buffered-aware direct seek)
+- Stages (3): progress `<0.5` → 0; `<1` → 1; else 2 (class `.is-active`)
 - Progress bar: `scaleX(progress)` on `[data-progress]`
 - Mobile source swap: `matchMedia("(max-width: 640px)")`
 
@@ -165,7 +163,6 @@ section#top.hero-scroll
 ### Reduced motion
 
 - Hide video; sticky uses poster as CSS background (`assets/hero-poster.png`)
-- No cover transform on sticky
 
 ### Assets
 
@@ -179,8 +176,10 @@ section#top.hero-scroll
 
 ### GSAP/Lenis
 
-- Prefer ScrollTrigger scrub on spacer range driving `video.currentTime` + stage classes
-- Must preserve stage thresholds and dual video sources
+- ScrollTrigger scrub on sticky+spacer range drives `video.currentTime` + stage classes
+- Soft magnetic Lenis snap to stage progress `0 / 0.5 / 1` (prefer ahead only; capture viewport-capped). Snap points are inactive once past scrub end so Ritual cannot yank back to the last frame
+- Video scrub gated until active source `readyState >= 2`
+- Dual video sources via `matchMedia("(max-width: 640px)")`
 
 ---
 
@@ -210,7 +209,7 @@ Infinite brand-line marquee sitting over/after hero scrub.
 
 ### Purpose
 
-Brand statement after hero.
+Brand statement late in the page (after duo compare, before manifesto).
 
 ### DOM
 
@@ -237,13 +236,13 @@ h2.display-copy.reveal
 
 ### Purpose
 
-Sticky scroll story: fruit → fragment vortex → bottle reveal, cycling **7 × 8% flavours**.
+Full-viewport locked auto-loop: fruit → fragment vortex → bottle reveal, cycling **7 × 8% flavours**. Horizontal prev/next; vertical scroll unlocks to leave.
 
 ### DOM
 
 ```
 .fts-sticky
-  .fts-bg[data-fts-bg]
+  .fts-bg
   .fts-stage
     .fts-bottle[data-fts-bottle] > img[data-fts-bottle-img]
     .fts-frags → 6× .fts-frag[data-fts-frag]
@@ -255,17 +254,16 @@ Sticky scroll story: fruit → fragment vortex → bottle reveal, cycling **7 ×
     .fts-reveal[data-fts-reveal] (name/meta/line)
     .fts-blurb[data-fts-blurb]
   .fts-sr[data-fts-live]
-.fts-spacer[data-fts-spacer]
 ```
 
 ### Layout
 
-- Sticky full viewport; tall spacer (desktop taller; **≤768px:** `700vh`; **reduced:** `280vh`)
-- Stage elements centered; bottle/fruit sizes via `min(…vw, …rem)`
+- Section = one viewport shell (`100svh` / `100dvh`, `max-height: 100dvh`); no tall scrub spacer
+- Stage elements centered; bottle size `min(98.8vw, 46.8rem)` desktop / `min(111.8vw, 28.6rem)` ≤768px (1.3× prior); fruit/frags unchanged
 - Copy: opener top; reveal bottom-left; blurb right (desktop) / bottom clamped ≤768px
 - Accent wash via `--fts-accent` RGB triple on cream gradients
 
-### Flavour cycle order (from `app.js`)
+### Flavour cycle order (from `fruitFlavours.js`)
 
 | # | id | Accent | Fruit | Bottle |
 |---|----|--------|-------|--------|
@@ -277,7 +275,7 @@ Sticky scroll story: fruit → fragment vortex → bottle reveal, cycling **7 ×
 | 5 | mojito | `#b7ed37` | fruits/mojito drift.png | 05-mojito-drift… |
 | 6 | lemonade | `#f6d94d` | fruits/lemonade twist.png | 06-lemonade-twist… |
 
-Progress splits evenly across 7 flavours (`progress * COUNT`). Per-flavour `t` drives poses:
+Timed pose driver (same pose math as before). Per-flavour `t` drives poses:
 
 | Phase (t) | Motion |
 |-----------|--------|
@@ -286,21 +284,31 @@ Progress splits evenly across 7 flavours (`progress * COUNT`). Per-flavour `t` d
 | 0.10–0.68 | Frags appear → vortex → collapse |
 | 0.48–0.68 | Bottle rises into place (+ blur on desktop) |
 | 0.66–0.78 | Name/meta/line + blurb pulse reveal |
-| 0.82–1 | Bottle exits; next fruit enters (unless last) |
+| 0.82–1 | Bottle exits; next fruit enters (wraps forever) |
+
+Settled hold: **2s** at `t = 0.78`, then auto-advance. Press-hold on stage pauses; release resumes slowly. Horizontal wheel/swipe → jump to settled prev/next. Vertical wheel/swipe → unlock and scroll to next/prev section. Click does nothing.
 
 Compact (`≤768px`): distance scale ~0.5–0.55; only **3** frags; hide `.fts-phase`.
 
-Classes: `.is-hot` while in view (non-reduced); `.is-reduced`; bottle `.is-settled` when `t >= 0.68` (and before exit or last).
+Classes: `.is-locked` / `.is-hot` while pinned; `.is-held` while press-holding; `.is-reduced`; bottle `.is-settled` when `t >= 0.68` (and before exit).
+
+### Reduced motion
+
+- First flavour settled bottle + copy static; no auto loop
 
 ### JS entry
 
-- IIFE “From fruit to Sipzy” in `app.js` (~line 925+): `sectionProgress`, `paint`, `fragPose`, `bottlePose`, etc.
+- `useFruitToSipzy` timeline/loop driver (GSAP tweens + hold timer)
 
 ### GSAP/Lenis
 
-- One ScrollTrigger timeline scrubbed across spacer; replicate pose math or port functions verbatim
-- Preload next fruit/bottle images as today
-
+- Soft-snap + lock engage only when the section is **≥50% revealed** (`ScrollTrigger` `start: 'top 50%'`, `end: 'bottom 50%'`). Soft-snap does **not** register `#from-fruit` while scrolling Ritual.
+- On enter from above (`onEnter`) or below (`onEnterBack`): interrupt soft-snap settle, paint seed, snap to section top (rAF re-align until flush), then Lenis `stop()`, lock, play watermelon intro then infinite loop
+- Soft-snap point is section top with a **symmetric** ±50% vh active band around the pin; capture radius is viewport-capped globally so mid-Ritual coasts cannot jump here
+- Vertical unlock scrolls clear of the half-reveal band and suppresses fruit snap briefly so soft-snap cannot re-lock
+- Leave / unlock always resets to seed (never leave mid-break frags painted)
+- `#from-fruit` deep-links to section top
+- Preload all fruit/bottle images before enabling loop
 ---
 
 ## 6. Find your Sipzy — `#find` `[data-find-sipzy]`
@@ -314,7 +322,7 @@ Interactive 16% bottle orbit (“flavour gravity”).
 ```
 .find-bg / .find-glass
 .find-sipzy-inner
-  .find-head.reveal
+  .find-head.reveal → kicker + .find-sub + h2
   .find-stage[data-find-stage]
     .find-play[data-find-play]
       .find-field[data-find-field]
@@ -339,6 +347,8 @@ Interactive 16% bottle orbit (“flavour gravity”).
 ### Layout
 
 - Cream section, ink top border; soft pastel radial `.find-bg` + glass texture
+- Header: kicker → “Five moods. One question.” → “Find your Sipzy”
+- Reduced top padding on `.find-sipzy-inner` only (`padding-top` ~half of bottom)
 - Field square-ish; orbit radius from field size (`--orbit`)
 - Selected: bottle scales to ~1.95 desktop / ~1.72 mobile-like; detail under field; story appears
 - **≥748px + `.is-open`:** grid `field | story`, nav under field
@@ -349,18 +359,18 @@ Interactive 16% bottle orbit (“flavour gravity”).
 
 | Mode | Condition | Behavior |
 |------|-----------|----------|
-| Physics orbit | fine pointer + width >747 + not reduced | Idle float on circle; pointer gravity; click select; ripple; prev/next; swipe |
-| Mobile-like | `≤747` OR coarse pointer | Same select UI without pointer gravity; static-er idle |
+| Physics orbit | fine pointer + width >747 + not reduced | Slow clockwise orbit (~55s/rev) + idle float; pointer gravity; **click** select; ripple; prev/next; swipe; dismiss via re-click / outside / Escape |
+| Mobile-like | `≤747` OR coarse pointer | Same click select UI without pointer gravity; same slow clockwise orbit |
 | Fallback list | reduced motion (and setupFallback) | Show `ul.find-fallback`; hide complex field as coded |
-| Reduced | `prefers-reduced-motion` | Snap static layout; no ripple animation; simplify detail transitions |
+| Reduced | `prefers-reduced-motion` | Snap static layout (no orbit spin); no ripple animation; simplify detail transitions |
 
 ### JS entry
 
-- IIFE “Find your Sipzy” (~line 340+): `measure`, `updateIdlePhysics`, `selectBottle`, `tick`, etc.
+- `useFindOrbit`: `measure`, `updateIdlePhysics`, `selectBottle`, `tick`, etc. Click-only open (no hover open / leave-to-close).
 
 ### GSAP/Lenis
 
-- Keep rAF physics or rebuild with GSAP; selection/hover must match scale, blur, opacity, accent ripple
+- Keep rAF physics or rebuild with GSAP; selection must match scale, blur, opacity, accent ripple
 
 ---
 
@@ -432,7 +442,7 @@ article.duo-panel--bold → copy + jamun-cask 16% PNG
 
 ### Purpose
 
-Three-step serve guide.
+Three-step serve guide early in the page (after hero ticker, before From fruit to Sipzy).
 
 ### DOM
 

@@ -1,7 +1,6 @@
 import { useRef } from 'react'
 import { useHeroScrub } from '../hooks/useHeroScrub'
 import Ticker from './Ticker'
-import IntroStory from './IntroStory'
 
 export default function HeroScroll() {
   const sectionRef = useRef(null)
@@ -53,17 +52,6 @@ export default function HeroScroll() {
           </div>
           <div className="hero-stage" data-stage="1">
             <h2>
-              Bright flavour.
-              <br />
-              <em>No small talk.</em>
-            </h2>
-            <p>
-              Chilled, ready and already mixed. Your only job is to pop the
-              cap.
-            </p>
-          </div>
-          <div className="hero-stage" data-stage="2">
-            <h2>
               Easy drift.
               <br />
               <em>Bold arrival.</em>
@@ -72,7 +60,7 @@ export default function HeroScroll() {
               Choose 8% for the easy flow or 16% when the night wants more.
             </p>
           </div>
-          <div className="hero-stage hero-stage--final" data-stage="3">
+          <div className="hero-stage hero-stage--final" data-stage="2">
             <h2>Meet the moods.</h2>
             <a href="#range" className="round-link">
               Explore all flavours <span aria-hidden="true">↓</span>
@@ -87,7 +75,6 @@ export default function HeroScroll() {
       </div>
       <div className="hero-scrub-spacer" aria-hidden="true" data-scrub-spacer />
       <Ticker />
-      <IntroStory />
     </section>
   )
 }

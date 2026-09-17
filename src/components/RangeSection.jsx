@@ -6,7 +6,7 @@ export default function RangeSection() {
   const railRef = useRef(null)
   const sectionRef = useRef(null)
   const observerRef = useRef(null)
-  const [range, setRange] = useState('16')
+  const [range, setRange] = useState('8')
 
   useEffect(() => {
     observerRef.current = new IntersectionObserver(
@@ -109,7 +109,7 @@ export default function RangeSection() {
 
   return (
     <section
-      className="range-section section-pad is-bold"
+      className="range-section section-pad"
       id="range"
       ref={sectionRef}
     >
@@ -140,10 +140,10 @@ export default function RangeSection() {
 
       <div className="range-meta reveal">
         <p data-range-intro>
-          Five deeper expressions in the taller 330 ml bottle—made for
-          after-dark energy.
+          Seven bright flavours in the compact 275 ml bottle—made for the
+          easy drift.
         </p>
-        <span data-range-count>01—05</span>
+        <span data-range-count>01—07</span>
       </div>
       <div className="product-rail" data-product-rail ref={railRef} aria-live="polite" />
     </section>

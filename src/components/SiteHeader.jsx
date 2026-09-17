@@ -1,6 +1,6 @@
 export default function SiteHeader() {
   return (
-    <header className="site-header" data-header>
+    <header className="site-header" data-header data-theme="dark">
       <a className="wordmark" href="#top" aria-label="Sipzy home">
         <img
           className="wordmark-logo wordmark-logo--white"

@@ -46,6 +46,8 @@ export function useFindOrbit(sectionRef) {
     const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)')
     const narrowQuery = window.matchMedia('(max-width: 747px)')
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
+    /** Slow clockwise drift: ~full revolution every ~55s */
+    const ORBIT_SPEED = (Math.PI * 2) / 55
 
     let nodes = []
     let selectedId = null
@@ -161,7 +163,8 @@ export function useFindOrbit(sectionRef) {
     function homePosition(node, t) {
       const floatX = Math.sin(t * 0.55 + node.phase) * node.floatAmp
       const floatY = Math.cos(t * 0.42 + node.phase * 1.3) * (node.floatAmp * 0.85)
-      const angle = node.homeAngle + Math.sin(t * 0.18 + node.phase) * 0.08
+      const drift = isReduced() ? 0 : -t * ORBIT_SPEED
+      const angle = node.homeAngle + drift + Math.sin(t * 0.18 + node.phase) * 0.08
       const r = radius * (0.98 + Math.sin(t * 0.25 + node.phase) * 0.025)
       return {
         x: Math.cos(angle) * r + floatX,
@@ -423,10 +426,6 @@ export function useFindOrbit(sectionRef) {
 
     function bindOrbitEvents() {
       nodes.forEach((node) => {
-        const onPointerEnter = () => {
-          if (isMobileLike() || selectedId || isReduced()) return
-          selectBottle(node.bottle.id)
-        }
         const onClick = (event) => {
           event.stopPropagation()
           if (selectedId === node.bottle.id) {
@@ -437,9 +436,8 @@ export function useFindOrbit(sectionRef) {
           if (selectedId) return
           selectBottle(node.bottle.id)
         }
-        node.el.addEventListener('pointerenter', onPointerEnter)
         node.el.addEventListener('click', onClick)
-        orbitHandlers.push({ el: node.el, onPointerEnter, onClick })
+        orbitHandlers.push({ el: node.el, onClick })
       })
     }
 
@@ -532,11 +530,6 @@ export function useFindOrbit(sectionRef) {
       resetField()
     }
 
-    function onStagePointerLeave() {
-      if (isMobileLike() || isReduced() || !selectedId) return
-      resetField()
-    }
-
     function onKeyDown(event) {
       if (event.key !== 'Escape' || !selectedId) return
       if (
@@ -589,7 +582,6 @@ export function useFindOrbit(sectionRef) {
     prevBtn.addEventListener('click', onPrevClick)
     nextBtn.addEventListener('click', onNextClick)
     stage.addEventListener('click', onStageClick)
-    stage.addEventListener('pointerleave', onStagePointerLeave)
     document.addEventListener('keydown', onKeyDown)
     window.addEventListener('resize', onResize)
     reduceMotion.addEventListener('change', applyReducedMode)
@@ -626,14 +618,12 @@ export function useFindOrbit(sectionRef) {
       prevBtn.removeEventListener('click', onPrevClick)
       nextBtn.removeEventListener('click', onNextClick)
       stage.removeEventListener('click', onStageClick)
-      stage.removeEventListener('pointerleave', onStagePointerLeave)
       document.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('resize', onResize)
       reduceMotion.removeEventListener('change', applyReducedMode)
       finePointer.removeEventListener('change', onFinePointerChange)
       narrowQuery.removeEventListener('change', onNarrowChange)
-      orbitHandlers.forEach(({ el, onPointerEnter, onClick }) => {
-        el.removeEventListener('pointerenter', onPointerEnter)
+      orbitHandlers.forEach(({ el, onClick }) => {
         el.removeEventListener('click', onClick)
       })
       fallbackHandlers.forEach(({ el, onClick }) => {

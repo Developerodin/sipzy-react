@@ -17,7 +17,7 @@ export default function FromFruitToSipzy() {
       aria-labelledby="fts-heading"
     >
       <div className="fts-sticky">
-        <div className="fts-bg" data-fts-bg aria-hidden="true" />
+        <div className="fts-bg" aria-hidden="true" />
 
         <div className="fts-stage" data-fts-stage aria-hidden="true">
           <div className="fts-bottle" data-fts-bottle>
@@ -92,7 +92,6 @@ export default function FromFruitToSipzy() {
 
         <p className="fts-sr" data-fts-live aria-live="polite" />
       </div>
-      <div className="fts-spacer" data-fts-spacer aria-hidden="true" />
     </section>
   )
 }

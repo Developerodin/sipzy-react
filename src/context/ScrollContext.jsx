@@ -10,6 +10,7 @@ import Lenis from 'lenis'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { getPrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
+import { createSoftSnapController } from '../lib/scroll/softSnap'
 
 gsap.registerPlugin(ScrollTrigger)
 
@@ -22,11 +23,16 @@ export function ScrollProvider({ children }) {
     typeof window !== 'undefined' ? window.scrollY : 0,
   )
   const contactCoverRef = useRef(null)
+  const snapRegistryRef = useRef(new Map())
+  const softSnapRef = useRef(null)
+  const sectionSnapTargetsRef = useRef(new Map())
 
   useEffect(() => {
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
     let lenis = null
     let ticker = null
+    let softSnap = null
+    let proxyWired = false
 
     const trackScrollDirection = () => {
       const y = window.scrollY
@@ -38,7 +44,63 @@ export function ScrollProvider({ children }) {
 
     window.addEventListener('scroll', trackScrollDirection, { passive: true })
 
-    if (!reduceMotion.matches) {
+    softSnap = createSoftSnapController({
+      getLenis: () => lenisRef.current,
+      isReducedMotion: () => reduceMotion.matches,
+      registry: snapRegistryRef.current,
+    })
+    softSnapRef.current = softSnap
+
+    function wireScrollerProxy() {
+      if (proxyWired) return
+      proxyWired = true
+      ScrollTrigger.scrollerProxy(document.body, {
+        scrollTop(value) {
+          const instance = lenisRef.current
+          if (arguments.length) {
+            if (instance) {
+              instance.scrollTo(value, { immediate: true })
+            } else {
+              window.scrollTo(0, value)
+            }
+          }
+          return instance ? instance.scroll : window.scrollY
+        },
+        getBoundingClientRect() {
+          return {
+            top: 0,
+            left: 0,
+            width: window.innerWidth,
+            height: window.innerHeight,
+          }
+        },
+      })
+      ScrollTrigger.defaults({ scroller: document.body })
+    }
+
+    function destroyLenis() {
+      if (ticker) {
+        gsap.ticker.remove(ticker)
+        ticker = null
+      }
+      if (lenis) {
+        lenis.destroy()
+        lenis = null
+        lenisRef.current = null
+      }
+      softSnap?.bindLenis(null)
+    }
+
+    function createLenis() {
+      destroyLenis()
+      if (reduceMotion.matches) {
+        lenisRef.current = null
+        ScrollTrigger.refresh()
+        return
+      }
+
+      wireScrollerProxy()
+
       lenis = new Lenis({
         autoRaf: false,
         smoothWheel: true,
@@ -51,18 +113,24 @@ export function ScrollProvider({ children }) {
       }
       gsap.ticker.add(ticker)
       gsap.ticker.lagSmoothing(0)
-    } else {
-      lenisRef.current = null
+
+      softSnap.bindLenis(lenis)
       ScrollTrigger.refresh()
     }
 
+    createLenis()
+    softSnap.attach()
+
     const onChange = () => {
       if (reduceMotion.matches) {
-        lenis?.stop()
+        destroyLenis()
+        ScrollTrigger.refresh()
+      } else if (!lenisRef.current) {
+        createLenis()
       } else {
-        lenis?.start()
+        lenisRef.current.start()
+        ScrollTrigger.refresh()
       }
-      ScrollTrigger.refresh()
     }
     reduceMotion.addEventListener('change', onChange)
     ScrollTrigger.refresh()
@@ -70,12 +138,31 @@ export function ScrollProvider({ children }) {
     return () => {
       reduceMotion.removeEventListener('change', onChange)
       window.removeEventListener('scroll', trackScrollDirection)
-      if (ticker) gsap.ticker.remove(ticker)
-      if (lenis) {
-        lenis.destroy()
-        lenisRef.current = null
+      softSnap.detach()
+      softSnapRef.current = null
+      destroyLenis()
+      if (proxyWired) {
+        ScrollTrigger.scrollerProxy(document.body, {})
+        ScrollTrigger.defaults({ scroller: window })
+        proxyWired = false
       }
       ScrollTrigger.getAll().forEach((t) => t.kill())
+    }
+  }, [])
+
+  const registerSnapPoints = useCallback((id, getPoints) => {
+    // Points are read lazily on settle — do not force-snap on mount/register.
+    snapRegistryRef.current.set(id, getPoints)
+    return () => {
+      snapRegistryRef.current.delete(id)
+    }
+  }, [])
+
+  /** Named scroll targets for deep links (e.g. from-fruit → section top). */
+  const registerSectionSnapTarget = useCallback((id, getY) => {
+    sectionSnapTargetsRef.current.set(id, getY)
+    return () => {
+      sectionSnapTargetsRef.current.delete(id)
     }
   }, [])
 
@@ -96,9 +183,48 @@ export function ScrollProvider({ children }) {
       return
     }
 
+    if (typeof target === 'string') {
+      const snapGetY = sectionSnapTargetsRef.current.get(
+        target.startsWith('#') ? target.slice(1) : target,
+      )
+      if (snapGetY) {
+        const y = snapGetY()
+        if (Number.isFinite(y)) {
+          if (lenis && !reduced && behavior !== 'auto') {
+            lenis.scrollTo(y + offset, { immediate: false })
+          } else {
+            window.scrollTo({
+              top: y + offset,
+              behavior: behavior === 'auto' || reduced ? 'auto' : 'smooth',
+            })
+          }
+          return
+        }
+      }
+    }
+
     const el =
       typeof target === 'string' ? document.querySelector(target) : target
     if (!el) return
+
+    const elId = el.id
+    if (elId) {
+      const snapGetY = sectionSnapTargetsRef.current.get(elId)
+      if (snapGetY) {
+        const y = snapGetY()
+        if (Number.isFinite(y)) {
+          if (lenis && !reduced && behavior !== 'auto') {
+            lenis.scrollTo(y + offset, { immediate: false })
+          } else {
+            window.scrollTo({
+              top: y + offset,
+              behavior: behavior === 'auto' || reduced ? 'auto' : 'smooth',
+            })
+          }
+          return
+        }
+      }
+    }
 
     if (lenis && !reduced && behavior !== 'auto') {
       lenis.scrollTo(el, { offset, immediate: false })
@@ -131,15 +257,30 @@ export function ScrollProvider({ children }) {
 
   const isScrollingDown = useCallback(() => scrollingDownRef.current, [])
 
+  const interruptSoftSnap = useCallback(() => {
+    softSnapRef.current?.interruptSettle?.()
+  }, [])
+
   const value = useMemo(
     () => ({
       lenisRef,
       scrollTo,
       scrollToContactCover,
       registerContactCover,
+      registerSnapPoints,
+      registerSectionSnapTarget,
+      interruptSoftSnap,
       isScrollingDown,
     }),
-    [scrollTo, scrollToContactCover, registerContactCover, isScrollingDown],
+    [
+      scrollTo,
+      scrollToContactCover,
+      registerContactCover,
+      registerSnapPoints,
+      registerSectionSnapTarget,
+      interruptSoftSnap,
+      isScrollingDown,
+    ],
   )
 
   return (

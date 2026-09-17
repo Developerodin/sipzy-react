@@ -5,11 +5,12 @@ import { useReveal } from './hooks/useReveal'
 import SkipLink from './components/SkipLink'
 import SiteHeader from './components/SiteHeader'
 import HeroScroll from './components/HeroScroll'
+import Ritual from './components/Ritual'
 import FromFruitToSipzy from './components/FromFruitToSipzy'
 import FindYourSipzy from './components/FindYourSipzy'
 import RangeSection from './components/RangeSection'
 import DuoCompare from './components/DuoCompare'
-import Ritual from './components/Ritual'
+import IntroStory from './components/IntroStory'
 import ManifestoContact from './components/ManifestoContact'
 import SiteFooter from './components/SiteFooter'
 import './styles/styles.css'
@@ -25,11 +26,12 @@ function SipzySite() {
       <SiteHeader />
       <main id="main">
         <HeroScroll />
+        <Ritual />
         <FromFruitToSipzy />
         <FindYourSipzy />
         <RangeSection />
         <DuoCompare />
-        <Ritual />
+        <IntroStory />
         <ManifestoContact />
       </main>
       <SiteFooter />
