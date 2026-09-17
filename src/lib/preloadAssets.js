@@ -34,6 +34,8 @@ export function encodeAssetUrl(src) {
     .join('/')
 }
 
+const IMAGE_PRELOAD_TIMEOUT_MS = 12000
+
 /**
  * @param {string} src
  * @returns {Promise<HTMLImageElement>}
@@ -47,16 +49,31 @@ export function preloadImage(src) {
   const promise = new Promise((resolve, reject) => {
     const img = new Image()
     img.decoding = 'async'
-    img.onload = async () => {
-      try {
-        if (typeof img.decode === 'function') await img.decode()
-      } catch {
-        // decode can fail on some browsers; onload is enough
-      }
-      resolve(img)
+    let settled = false
+
+    const finish = (fn, arg) => {
+      if (settled) return
+      settled = true
+      window.clearTimeout(timer)
+      fn(arg)
     }
-    img.onerror = () => reject(new Error(`Failed to load image: ${url}`))
+
+    const timer = window.setTimeout(() => {
+      finish(reject, new Error(`Image preload timed out: ${url}`))
+    }, IMAGE_PRELOAD_TIMEOUT_MS)
+
+    img.onload = () => {
+      // Do not await decode() — it can hang on some mobile browsers.
+      finish(resolve, img)
+    }
+    img.onerror = () => {
+      finish(reject, new Error(`Failed to load image: ${url}`))
+    }
     img.src = url
+  }).catch((err) => {
+    // Drop failed entries so a later retry can succeed.
+    imageCache.delete(url)
+    throw err
   })
 
   imageCache.set(url, promise)

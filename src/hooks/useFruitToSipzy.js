@@ -28,6 +28,8 @@ const HALF_REVEAL = 0.5
 const SNAP_SUPPRESS_MS = 500
 /** Max rAF frames spent aligning to section top before lock finishes. */
 const ALIGN_MAX_FRAMES = 12
+/** Watchdog: restart loop if lock stalls with no tween/hold. */
+const LOOP_WATCHDOG_MS = 700
 
 /**
  * From fruit to Sipzy — viewport lock + timed fruit→break→bottle loop.
@@ -105,6 +107,9 @@ export function useFruitToSipzy(sectionRef) {
     let driftRaf = 0
     let alignRaf = 0
     let alignGeneration = 0
+    let loopWatchdog = 0
+    /** True while applyFlavour+intro kickoff is in flight (no tween yet). */
+    let bootstrapping = false
     /** Soft-snap ignored until this timestamp (post-unlock escape). */
     let snapSuppressUntil = 0
 
@@ -445,6 +450,7 @@ export function useFruitToSipzy(sectionRef) {
     function stopLoopMotion() {
       killTween()
       clearHold()
+      bootstrapping = false
     }
 
     function animateT(from, to, duration, ease, onComplete) {
@@ -476,58 +482,93 @@ export function useFruitToSipzy(sectionRef) {
       }, ms)
     }
 
-    /** If the loop stalls with no tween and no hold, resume the settled hold. */
+    /** If the loop stalls with no tween and no hold, resume from settled or seed. */
     function ensureLoopAlive() {
       if (!alive || !locked || held || reduced.matches) return
-      if (tween || holdTimer) return
-      scheduleHold(HOLD_MS)
+      if (tween || holdTimer || bootstrapping) return
+      if (currentT >= SETTLED_T - 0.02) {
+        scheduleHold(HOLD_MS)
+        return
+      }
+      // Stuck on opener/seed — restart intro for the current flavour.
+      playIntro(loopIndex)
+    }
+
+    function startLoopWatchdog() {
+      stopLoopWatchdog()
+      loopWatchdog = window.setInterval(() => {
+        ensureLoopAlive()
+      }, LOOP_WATCHDOG_MS)
+    }
+
+    function stopLoopWatchdog() {
+      if (loopWatchdog) {
+        window.clearInterval(loopWatchdog)
+        loopWatchdog = 0
+      }
     }
 
     function playIntro(index) {
+      if (bootstrapping || tween) return
       loopIndex = index
-      applyFlavour(index).then((ok) => {
-        if (!ok || !alive || !locked) return
-        if (reduced.matches) {
-          paintFlavourFrame(index, SETTLED_T)
-          return
-        }
-        animateT(0, SETTLED_T, INTRO_DURATION, 'power2.out', () => {
-          scheduleHold(HOLD_MS)
-          ensureLoopAlive()
-        })
-      })
-    }
-
-    function advanceToNext() {
-      if (!locked || held || reduced.matches) return
-      const fromIndex = loopIndex
-      animateT(currentT, 1, EXIT_DURATION, 'power2.in', () => {
-        const next = (fromIndex + 1) % COUNT
-        loopIndex = next
-        applyFlavour(next).then((ok) => {
+      bootstrapping = true
+      applyFlavour(index)
+        .then((ok) => {
           if (!ok || !alive || !locked) return
+          if (reduced.matches) {
+            paintFlavourFrame(index, SETTLED_T)
+            return
+          }
           animateT(0, SETTLED_T, INTRO_DURATION, 'power2.out', () => {
             scheduleHold(HOLD_MS)
             ensureLoopAlive()
           })
         })
+        .finally(() => {
+          bootstrapping = false
+        })
+    }
+
+    function advanceToNext() {
+      if (!locked || held || reduced.matches || bootstrapping) return
+      const fromIndex = loopIndex
+      animateT(currentT, 1, EXIT_DURATION, 'power2.in', () => {
+        const next = (fromIndex + 1) % COUNT
+        loopIndex = next
+        bootstrapping = true
+        applyFlavour(next)
+          .then((ok) => {
+            if (!ok || !alive || !locked) return
+            animateT(0, SETTLED_T, INTRO_DURATION, 'power2.out', () => {
+              scheduleHold(HOLD_MS)
+              ensureLoopAlive()
+            })
+          })
+          .finally(() => {
+            bootstrapping = false
+          })
       })
     }
 
     function jumpToSettled(index) {
-      if (!locked || reduced.matches) return
+      if (!locked || reduced.matches || bootstrapping) return
       if (performance.now() < stepCoolUntil) return
       stepCoolUntil = performance.now() + STEP_COOLDOWN_MS
       stopLoopMotion()
       loopIndex = ((index % COUNT) + COUNT) % COUNT
-      applyFlavour(loopIndex).then((ok) => {
-        if (!ok || !alive || !locked) return
-        paintFlavourFrame(loopIndex, SETTLED_T)
-        if (!held) {
-          scheduleHold(HOLD_MS)
-          ensureLoopAlive()
-        }
-      })
+      bootstrapping = true
+      applyFlavour(loopIndex)
+        .then((ok) => {
+          if (!ok || !alive || !locked) return
+          paintFlavourFrame(loopIndex, SETTLED_T)
+          if (!held) {
+            scheduleHold(HOLD_MS)
+            ensureLoopAlive()
+          }
+        })
+        .finally(() => {
+          bootstrapping = false
+        })
     }
 
     function step(dir) {
@@ -583,7 +624,8 @@ export function useFruitToSipzy(sectionRef) {
           driftRaf = 0
           return
         }
-        if (!isAlignedToTop()) {
+        // Don't fight an in-progress unlock swipe.
+        if (!touchActive && !isAlignedToTop()) {
           const y = section.offsetTop
           window.scrollTo({ top: y, behavior: 'auto' })
           lenisRef.current?.scrollTo(y, { immediate: true })
@@ -625,6 +667,7 @@ export function useFruitToSipzy(sectionRef) {
         // Re-assert after stop in case Lenis ignored the earlier scrollTo.
         window.scrollTo({ top: section.offsetTop, behavior: 'auto' })
         startDriftGuard()
+        startLoopWatchdog()
         playIntro(0)
       }
 
@@ -655,6 +698,7 @@ export function useFruitToSipzy(sectionRef) {
       stopAlignLoop()
       locked = false
       stopDriftGuard()
+      stopLoopWatchdog()
       resetExperiencePaint()
       section.classList.remove('is-locked', 'is-hot', 'is-held')
       lenisRef.current?.start()
@@ -723,7 +767,8 @@ export function useFruitToSipzy(sectionRef) {
 
     function onHoldStart(e) {
       if (!locked || reduced.matches) return
-      if (e.pointerType === 'mouse' && e.button !== 0) return
+      // Mouse only — touch uses swipe for step/unlock; a tap must not pause the loop.
+      if (e.pointerType !== 'mouse' || e.button !== 0) return
       held = true
       section.classList.add('is-held')
       clearHold()
@@ -823,6 +868,7 @@ export function useFruitToSipzy(sectionRef) {
           stopAlignLoop()
           locked = false
           stopDriftGuard()
+          stopLoopWatchdog()
           lenisRef.current?.start()
         }
         if (pinTrigger) {
@@ -847,6 +893,8 @@ export function useFruitToSipzy(sectionRef) {
     const unregisterSnapPoints = registerSnapPoints('from-fruit', () => {
       if (reduced.matches) return []
       if (performance.now() < snapSuppressUntil) return []
+      // Never magnetize the seed frame before we can lock + animate.
+      if (!assetsReady) return []
       // No magnet through Ritual — only once FTS is half revealed (or already locked).
       if (!locked && !isHalfRevealed()) return []
       const y = section.offsetTop
@@ -881,29 +929,20 @@ export function useFruitToSipzy(sectionRef) {
       // Reduced path waits for assets then paints static.
     }
 
-    preloadAllFruitFlavours(flavours)
-      .then(async () => {
-        if (!alive) return
-        await applyFlavour(0)
+    // Unlock the experience as soon as the first flavour is ready; warm the rest in background.
+    applyFlavour(0)
+      .catch(() => false)
+      .then((ok) => {
         if (!alive) return
         assetsReady = true
         section.setAttribute('data-assets-ready', '')
         if (reduced.matches) {
-          applyReducedStatic()
+          if (ok) applyReducedStatic()
+          else paintSeed()
         } else {
           tryLockIfInView()
         }
-      })
-      .catch(async () => {
-        if (!alive) return
-        await applyFlavour(0)
-        assetsReady = true
-        section.setAttribute('data-assets-ready', '')
-        if (reduced.matches) {
-          applyReducedStatic()
-        } else {
-          tryLockIfInView()
-        }
+        preloadAllFruitFlavours(flavours).catch(() => {})
       })
 
     return () => {
@@ -911,6 +950,7 @@ export function useFruitToSipzy(sectionRef) {
       alignGeneration += 1
       stopAlignLoop()
       stopDriftGuard()
+      stopLoopWatchdog()
       stopLoopMotion()
       if (locked) lenisRef.current?.start()
       if (pinTrigger) pinTrigger.kill()
